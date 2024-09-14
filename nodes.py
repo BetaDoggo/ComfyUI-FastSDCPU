@@ -13,8 +13,8 @@ class fastsdcpu:
             "required": {
                 "prompt": ("STRING", {"multiline": True,}),
                 "negative_prompt": ("STRING", {"multiline": True,}),
-                "width": (["256","512","768","1024",], {"default:": 2}),
-                "height": (["256","512","768","1024",], {"default:": 2}),
+                "width": (["256","512","768","1024",],),
+                "height": (["256","512","768","1024",],),
                 "steps": ("INT", {"default": 1, "min": 1, "max": 50}),
                 "cfg": ("FLOAT", {"default": 1, "min": 1, "max": 20, "step": 0.5,}),
                 "seed": ("INT", {"default": 1337, "min": 1, "max": 16777215}),
@@ -26,29 +26,28 @@ class fastsdcpu:
             "optional": {
                 "openvino_model": ("STRING",),
                 "lcm_model": ("STRING",),
+                "i2i_strength": ("FLOAT", {"default": 0.75, "min": 0, "max": 1, "step": 0.01,}),
+                "image": ("IMAGE",),
             }
         }
     
-    RETURN_TYPES = ("IMAGE",)
+    RETURN_TYPES = ("IMAGE","STRING",)
     FUNCTION = "generate"
     CATEGORY = "fastsdcpu"
 
-    def generate(self, prompt, negative_prompt, width, height, steps, cfg, seed, clip_skip, use_taesd, token_merging, endpoint, openvino_model=None, lcm_model=None):
+    def generate(self, prompt, negative_prompt, width, height, steps, cfg, seed, clip_skip, use_taesd, token_merging, endpoint, openvino_model=None, lcm_model=None, i2i_strength=None, image=None):
+        #main args
         body = {
-            #"lcm_model_id": lcm_model,
-            "openvino_lcm_model_id": openvino_model,
             #"use_offline_model": False,
             #"use_lcm_lora": False,
             #"lcm_lora": {
             #    "base_model_id": "Lykon/dreamshaper-8",
             #    "lcm_lora_id": "latent-consistency/lcm-lora-sdv1-5"
             #},
+            "openvino_lcm_model_id": "filler", #an input is required even if it's not used
             "use_tiny_auto_encoder": use_taesd,
-            "use_openvino": openvino_model != "" or None,
             "prompt": prompt,
             "negative_prompt": negative_prompt,
-            #"init_image": "string",
-            #"strength": 0.6,
             "image_height": height,
             "image_width": width,
             "inference_steps": steps,
@@ -61,12 +60,39 @@ class fastsdcpu:
             "diffusion_task": "text_to_image",
             "rebuild_pipeline": False
         }
-
+        #enable i2i
+        if image is not None:
+            image_np = 255. * image.cpu().numpy().squeeze()
+            image_np = np.clip(image_np, 0, 255).astype(np.uint8)
+            img_pil = Image.fromarray(image_np)
+            buffer = BytesIO()
+            img_pil.save(buffer, format='JPEG')
+            img_b64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+            image_params = {
+                "init_image": img_b64,
+                "strength": i2i_strength,
+                "diffusion_task": "image_to_image",
+            }
+            body.update(image_params)
+        #select model type
+        if openvino_model is not None and not "":
+            models = {
+                "use_openvino": True,
+                "openvino_lcm_model_id": openvino_model,
+            }
+        else:
+            models = {
+                "use_openvino": False,
+                "lcm_model_id": lcm_model,
+            }
+        body.update(models)
+        print("Request: \n" +  str(body))
         response = requests.post(endpoint + "/api/generate", data=json.dumps(body),)
+        #print(response.text)
         image = Image.open(BytesIO(base64.b64decode(response.json()['images'][0])))
         image = np.array(image).astype(np.float32) / 255.0
         image = torch.from_numpy(image)[None,]
-        return (image,)
+        return (image,str(response.json()['latency']) + " Seconds",)
 
 class fastsdcpu_vino_models:
     @classmethod
