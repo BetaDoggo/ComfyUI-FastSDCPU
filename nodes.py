@@ -21,6 +21,7 @@ class fastsdcpu:
                 "clip_skip": ("INT", {"default": 1, "min": 1, "max": 5}),
                 "use_taesd": ("BOOLEAN", {"default": True},),
                 "token_merging": ("FLOAT", {"default": 0, "min": 0, "max": 1, "step": 0.1,}),
+                "local_path": ("BOOLEAN", {"default": False}),
                 "endpoint": ("STRING", {"default": "http://localhost:8000",}),
             },
             "optional": {
@@ -35,10 +36,10 @@ class fastsdcpu:
     FUNCTION = "generate"
     CATEGORY = "fastsdcpu"
 
-    def generate(self, prompt, negative_prompt, width, height, steps, cfg, seed, clip_skip, use_taesd, token_merging, endpoint, openvino_model=None, lcm_model=None, i2i_strength=None, image=None):
+    def generate(self, prompt, negative_prompt, width, height, steps, cfg, seed, clip_skip, use_taesd, token_merging, local_path, endpoint, openvino_model=None, lcm_model=None, i2i_strength=None, image=None):
         #main args
         body = {
-            #"use_offline_model": False,
+            "use_offline_model": local_path,
             #"use_lcm_lora": False,
             #"lcm_lora": {
             #    "base_model_id": "Lykon/dreamshaper-8",
