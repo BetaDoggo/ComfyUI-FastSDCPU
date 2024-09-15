@@ -1,0 +1,15 @@
+[project]
+name = "comfyui-fastsdcpu"
+description = "A set of nodes for interfacing with the FastSDCPU webserver."
+version = "1.0.0"
+license = {file = "LICENSE"}
+dependencies = ["requests", "pillow", "numpy", "torch"]
+
+[project.urls]
+Repository = "https://github.com/BetaDoggo/ComfyUI-FastSDCPU"
+#  Used by Comfy Registry https://comfyregistry.org
+
+[tool.comfy]
+PublisherId = ""
+DisplayName = "ComfyUI-FastSDCPU"
+Icon = ""
