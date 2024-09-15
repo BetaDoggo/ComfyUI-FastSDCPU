@@ -1,3 +1,4 @@
+import os
 import json
 import requests
 import base64
@@ -5,6 +6,7 @@ import torch
 import numpy as np
 from io import BytesIO
 from PIL import Image
+import folder_paths
 
 class fastsdcpu:
     @classmethod
@@ -126,15 +128,35 @@ class fastsdcpu_lcm_models:
 
     def choose(self, model):
         return (model,)
+    
+class fastsdcpu_loadModel:
+    @classmethod
+    def INPUT_TYPES(cls):
+        model_path = os.path.join(folder_paths.models_dir, "diffusers")
+        models = [f for f in os.listdir(model_path) if os.path.isdir(os.path.join(model_path, f))]
+        return {
+            "required": {
+                "model": (models,),
+            },
+        }
+    
+    RETURN_TYPES = ("STRING",)
+    FUNCTION = "choose"
+    CATEGORY = "fastsdcpu"
+
+    def choose(self, model):
+        return (os.path.join(folder_paths.models_dir, "diffusers", model),)
 
 NODE_CLASS_MAPPINGS = {
     "fastsdcpu": fastsdcpu,
     "fastsdcpu_vino_models": fastsdcpu_vino_models,
     "fastsdcpu_lcm_models": fastsdcpu_lcm_models,
+    "fastsdcpu_loadModel": fastsdcpu_loadModel,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "fastsdcpu": "fastsdcpu",
     "fastsdcpu_vino_models": "fastsdcpu_vino_models",
     "fastsdcpu_lcm_models": "fastsdcpu_lcm_models",
+    "fastsdcpu_loadModel": "fastsdcpu_loadModel",
 }
