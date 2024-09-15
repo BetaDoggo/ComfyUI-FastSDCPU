@@ -19,11 +19,13 @@ class fastsdcpu:
                 "height": (["256","512","768","1024",],),
                 "steps": ("INT", {"default": 1, "min": 1, "max": 50}),
                 "cfg": ("FLOAT", {"default": 1, "min": 1, "max": 20, "step": 0.5,}),
-                "seed": ("INT", {"default": 1337, "min": 1, "max": 16777215}),
+                "seed": ("INT", {"default": 1337, "min": 1, "max": 16777215}),                
                 "clip_skip": ("INT", {"default": 1, "min": 1, "max": 5}),
-                "use_taesd": ("BOOLEAN", {"default": True},),
                 "token_merging": ("FLOAT", {"default": 0, "min": 0, "max": 1, "step": 0.1,}),
-                "local_path": ("BOOLEAN", {"default": False}),
+                "use_taesd": ("BOOLEAN", {"default": True},),
+                "use_seed": ("BOOLEAN", {"default": False},),
+                "use_local_path": ("BOOLEAN", {"default": False}),
+                #"apply_LCM_lora": ("BOOLEAN", {"default": False}),
                 "endpoint": ("STRING", {"default": "http://localhost:8000",}),
             },
             "optional": {
@@ -35,18 +37,15 @@ class fastsdcpu:
         }
     
     RETURN_TYPES = ("IMAGE","STRING",)
+    RETURN_NAMES = ("Image","Latency",)
     FUNCTION = "generate"
     CATEGORY = "fastsdcpu"
 
-    def generate(self, prompt, negative_prompt, width, height, steps, cfg, seed, clip_skip, use_taesd, token_merging, local_path, endpoint, openvino_model=None, lcm_model=None, i2i_strength=None, image=None):
+    def generate(self, prompt, negative_prompt, width, height, steps, cfg, seed, clip_skip, token_merging, use_taesd, use_seed, use_local_path, endpoint, openvino_model="", lcm_model="", i2i_strength=None, image=None):
         #main args
         body = {
-            "use_offline_model": local_path,
-            #"use_lcm_lora": False,
-            #"lcm_lora": {
-            #    "base_model_id": "Lykon/dreamshaper-8",
-            #    "lcm_lora_id": "latent-consistency/lcm-lora-sdv1-5"
-            #},
+            "use_offline_model": use_local_path,
+            #"use_lcm_lora": apply_LCM_lora,
             "openvino_lcm_model_id": "filler", #an input is required even if it's not used
             "use_tiny_auto_encoder": use_taesd,
             "prompt": prompt,
@@ -59,7 +58,7 @@ class fastsdcpu:
             "token_merging": token_merging,
             "number_of_images": 1,
             "seed": seed,
-            "use_seed": True,
+            "use_seed": use_seed,
             "diffusion_task": "text_to_image",
             "rebuild_pipeline": False
         }
@@ -78,7 +77,7 @@ class fastsdcpu:
             }
             body.update(image_params)
         #select model type
-        if openvino_model is not None and not "":
+        if openvino_model != "":
             models = {
                 "use_openvino": True,
                 "openvino_lcm_model_id": openvino_model,
@@ -89,6 +88,14 @@ class fastsdcpu:
                 "lcm_model_id": lcm_model,
             }
         body.update(models)
+        '''if apply_LCM_lora:
+            lcm_lora = {
+                "lcm_lora": {
+                    "base_model_id": openvino_model if openvino_model is not None and not "" else lcm_model,
+                    "lcm_lora_id": "latent-consistency/lcm-lora-sdv1-5"
+                },
+            }
+            body.update(lcm_lora)'''
         print("Request: \n" +  str(body))
         response = requests.post(endpoint + "/api/generate", data=json.dumps(body),)
         #print(response.text)
