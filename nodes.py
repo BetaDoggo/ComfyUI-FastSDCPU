@@ -20,7 +20,8 @@ class fastsdcpu:
                 "steps": ("INT", {"default": 1, "min": 1, "max": 50}),
                 "cfg": ("FLOAT", {"default": 1, "min": 1, "max": 20, "step": 0.5,}),
                 "seed": ("INT", {"default": 1337, "min": 1, "max": 16777215}),
-                "batch_size": ("INT", {"default": 1, "min": 1, "max": 16}),               
+                "batch_size": ("INT", {"default": 1, "min": 1, "max": 16}),
+                "batch_count": ("INT", {"default": 1, "min": 1, "max": 16}),               
                 "clip_skip": ("INT", {"default": 1, "min": 1, "max": 5}),
                 "token_merging": ("FLOAT", {"default": 0, "min": 0, "max": 1, "step": 0.1,}),
                 "use_taesd": ("BOOLEAN", {"default": True},),
@@ -42,12 +43,12 @@ class fastsdcpu:
     FUNCTION = "generate"
     CATEGORY = "fastsdcpu"
 
-    def generate(self, prompt, negative_prompt, width, height, steps, cfg, seed, batch_size, clip_skip, token_merging, use_taesd, use_seed, use_local_path, endpoint, openvino_model="", lcm_model="", i2i_strength=None, image=None):
+    def generate(self, prompt, negative_prompt, width, height, steps, cfg, seed, batch_size, batch_count, clip_skip, token_merging, use_taesd, use_seed, use_local_path, endpoint, openvino_model="", lcm_model="", i2i_strength=None, image=None):
         #main args
         body = {
             "use_offline_model": use_local_path,
             #"use_lcm_lora": apply_LCM_lora,
-            "openvino_lcm_model_id": "filler", #an input is required even if it's not used
+            "openvino_lcm_model_id": "filler", #an input is required even if it's not used (I think)
             "use_tiny_auto_encoder": use_taesd,
             "prompt": prompt,
             "negative_prompt": negative_prompt,
@@ -58,7 +59,6 @@ class fastsdcpu:
             "clip_skip": clip_skip,
             "token_merging": token_merging,
             "number_of_images": batch_size,
-            "seed": seed,
             "use_seed": use_seed,
             "diffusion_task": "text_to_image",
             "rebuild_pipeline": False
@@ -87,7 +87,7 @@ class fastsdcpu:
             models = {
                 "use_openvino": False,
                 "lcm_model_id": lcm_model,
-            }
+            }      
         body.update(models)
         '''if apply_LCM_lora:
             lcm_lora = {
@@ -97,14 +97,18 @@ class fastsdcpu:
                 },
             }
             body.update(lcm_lora)'''
-        print("Request: \n" +  str(body))
-        response = requests.post(endpoint + "/api/generate", data=json.dumps(body),)
-        #print(response.text)
         image_list = []
-        for output in range(batch_size):
-            image = Image.open(BytesIO(base64.b64decode(response.json()['images'][output - 1])))
-            image = np.array(image).astype(np.float32) / 255.0
-            image_list.append(torch.from_numpy(image))
+        for batch in range(batch_count):
+            seeds = {
+                "seed": seed + batch - 1,
+            }
+            body.update(seeds)
+            print("Request: \n" +  str(body))
+            response = requests.post(endpoint + "/api/generate", data=json.dumps(body),)
+            for output in range(batch_size):
+                image = Image.open(BytesIO(base64.b64decode(response.json()['images'][output - 1])))
+                image = np.array(image).astype(np.float32) / 255.0
+                image_list.append(torch.from_numpy(image))
         images = torch.stack(image_list, dim=0)
         return (images,str(response.json()['latency']) + " Seconds",)
 
